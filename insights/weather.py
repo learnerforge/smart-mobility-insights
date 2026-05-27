@@ -1,7 +1,10 @@
+import logging
 import os
 from datetime import datetime, timedelta
 
 import requests
+
+logger = logging.getLogger(__name__)
 
 API_KEY = os.environ.get("OPENWEATHER_API_KEY", "")
 CACHE_TTL = timedelta(minutes=30)
@@ -68,7 +71,11 @@ def get_weather(lat, lng):
         result = (cond_id, desc)
         _cache[key] = (datetime.now(), result)
         return result
-    except Exception:
+    except requests.RequestException as e:
+        logger.warning("Weather API request failed for %s,%s: %s", lat, lng, e)
+        return None, None
+    except (KeyError, IndexError, ValueError) as e:
+        logger.warning("Weather API response parse error for %s,%s: %s", lat, lng, e)
         return None, None
 
 

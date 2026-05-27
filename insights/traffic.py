@@ -1,54 +1,58 @@
-import json
-import os
+import logging
 from datetime import datetime
 
+from .utils import load_config
 
-def _load_config():
-    path = os.path.join(os.path.dirname(__file__), '..', 'data', 'config.json')
-    with open(path) as f:
-        return json.load(f)
+logger = logging.getLogger(__name__)
 
 
 def _to_minutes(t):
-    parts = t.split(':')
+    parts = t.split(":")
     return int(parts[0]) * 60 + int(parts[1])
 
 
 def get_time_factor(config):
     now = datetime.now()
     current = now.hour * 60 + now.minute
-    tc = config['traffic']
+    tc = config["traffic"]
 
-    ms = _to_minutes(tc['peak_hours']['morning']['start'])
-    me = _to_minutes(tc['peak_hours']['morning']['end'])
-    es = _to_minutes(tc['peak_hours']['evening']['start'])
-    ee = _to_minutes(tc['peak_hours']['evening']['end'])
+    ms = _to_minutes(tc["peak_hours"]["morning"]["start"])
+    me = _to_minutes(tc["peak_hours"]["morning"]["end"])
+    es = _to_minutes(tc["peak_hours"]["evening"]["start"])
+    ee = _to_minutes(tc["peak_hours"]["evening"]["end"])
 
     if (ms <= current <= me) or (es <= current <= ee):
-        return tc['congestion_factors']['peak']
+        return tc["congestion_factors"]["peak"]
     elif current < 360 or current > 1320:
-        return tc['congestion_factors']['night']
+        return tc["congestion_factors"]["night"]
     elif (me < current < me + 60) or (ee < current < ee + 60):
-        return tc['congestion_factors']['shoulder']
+        return tc["congestion_factors"]["shoulder"]
     else:
-        return tc['congestion_factors']['off_peak']
+        return tc["congestion_factors"]["off_peak"]
 
 
 def get_congestion_level(factor, config):
-    th = config['traffic']['congestion_thresholds']
-    if factor < th['light']:
-        return 'light', '🟢'
-    elif factor < th['moderate']:
-        return 'moderate', '🟡'
-    elif factor < th['heavy']:
-        return 'heavy', '🟠'
+    th = config["traffic"]["congestion_thresholds"]
+    if factor < th["light"]:
+        return "light", "\U0001f7e2"
+    elif factor < th["moderate"]:
+        return "moderate", "\U0001f7e1"
+    elif factor < th["heavy"]:
+        return "heavy", "\U0001f7e0"
     else:
-        return 'congested', '🔴'
+        return "congested", "\U0001f534"
 
 
 def get_area_factor(origin_name, dest_name, congestion_logs):
-    names = [origin_name.lower(), dest_name.lower()]
-    count = sum(1 for log in congestion_logs if log['location_name'].lower() in names)
+    origin_lower = origin_name.lower() if origin_name else ""
+    dest_lower = dest_name.lower() if dest_name else ""
+    count = 0
+    for log in congestion_logs:
+        log_name = log.get("location_name", "").lower()
+        if origin_lower and origin_lower in log_name:
+            count += 1
+        if dest_lower and dest_lower in log_name:
+            count += 1
     if count > 20:
         return 2.0
     elif count > 10:
@@ -58,8 +62,11 @@ def get_area_factor(origin_name, dest_name, congestion_logs):
     return 1.0
 
 
-def get_traffic_info(origin_name, dest_name, congestion_logs=None, origin_lat=None, origin_lng=None, dest_lat=None, dest_lng=None):
-    config = _load_config()
+def get_traffic_info(
+    origin_name, dest_name, congestion_logs=None,
+    origin_lat=None, origin_lng=None, dest_lat=None, dest_lng=None,
+):
+    config = load_config()
     time_factor = get_time_factor(config)
     area_factor = get_area_factor(origin_name, dest_name, congestion_logs or [])
     combined = max(time_factor, area_factor)
@@ -73,11 +80,11 @@ def get_traffic_info(origin_name, dest_name, congestion_logs=None, origin_lat=No
     combined += weather_factor
     level, icon = get_congestion_level(combined, config)
     return {
-        'factor': round(combined, 2),
-        'level': level,
-        'icon': icon,
-        'time_factor': time_factor,
-        'area_factor': area_factor,
-        'weather_factor': round(weather_factor, 2),
-        'weather_description': weather_desc,
+        "factor": round(combined, 2),
+        "level": level,
+        "icon": icon,
+        "time_factor": time_factor,
+        "area_factor": area_factor,
+        "weather_factor": round(weather_factor, 2),
+        "weather_description": weather_desc,
     }

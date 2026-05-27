@@ -2,115 +2,167 @@
 {% load static %}
 {% block title %}Route Planner — Smart Mobility{% endblock %}
 {% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <style>
 html, body, #map { height: 100%; margin: 0; }
 .navbar { position: relative; z-index: 1000; }
+
 #sidebar {
-    position: absolute; top: 56px; left: 0; width: 380px; height: calc(100% - 56px);
-    background: white; z-index: 500; overflow-y: auto; padding: 16px;
-    box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+    position: absolute; top: 59px; left: 0; width: 380px; height: calc(100% - 59px);
+    background: #f8f9fa; z-index: 500; overflow-y: auto; padding: 0;
+    box-shadow: 2px 0 12px rgba(0,0,0,0.08);
 }
-#map { margin-left: 380px; height: calc(100vh - 56px); }
-.route-card {
-    border: 1px solid #dee2e6; border-radius: 8px; padding: 12px; margin-bottom: 8px;
-    cursor: pointer; transition: all 0.2s;
-}
-.route-card:hover { border-color: #0d6efd; background: #f0f7ff; }
-.route-card.recommended { border-color: #198754; background: #f0fff4; }
-.route-card .label { font-size: 12px; color: #6c757d; }
-.route-card .value { font-size: 16px; font-weight: 600; }
-.traffic-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
-.suggestions-box { position: absolute; z-index: 1000; background: white; border: 1px solid #ddd; max-height: 200px; overflow-y: auto; width: calc(100% - 16px); }
-.suggestion-item { padding: 6px 10px; cursor: pointer; font-size: 13px; border-bottom: 1px solid #f0f0f0; }
+#sidebar::-webkit-scrollbar { width: 5px; }
+#sidebar::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+.sidebar-inner { padding: 16px; }
+#map { margin-left: 380px; height: calc(100vh - 59px); }
+
+.input-group-sm .pin-btn { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.pin-active { border-color: #198754 !important; box-shadow: 0 0 0 3px rgba(25,135,84,0.2); }
+.pin-status { font-size: 11px; color: #198754; font-weight: 600; display: none; margin-top: 2px; padding-left: 2px; }
+.pin-cursor { cursor: crosshair !important; }
+.spinner { display: none; width: 1rem; height: 1rem; border: 2px solid #f3f3f3; border-top: 2px solid #3498f3; border-radius: 50%; animation: spin 0.8s linear infinite; margin-left: 8px; vertical-align: middle; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+.suggestions-box { position: absolute; z-index: 1000; background: white; border: 1px solid #dee2e6; border-radius: 0 0 8px 8px; max-height: 200px; overflow-y: auto; width: calc(100% - 16px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+.suggestion-item { padding: 8px 12px; cursor: pointer; font-size: 13px; border-bottom: 1px solid #f0f0f0; transition: background 0.15s; }
 .suggestion-item:hover { background: #e9ecef; }
 #origin-suggestions, #dest-suggestions { position: relative; }
-.input-group-sm .pin-btn { border-top-left-radius: 0; border-bottom-left-radius: 0; }
-.pin-active { border-color: #198754 !important; box-shadow: 0 0 0 2px rgba(25,135,84,0.25); }
-.pin-status { font-size: 11px; color: #198754; font-weight: 600; display: none; margin-top: 2px; }
-.pin-cursor { cursor: crosshair !important; }
+
+.section-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #6c757d; margin-bottom: 6px; }
+.toggle-btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
+.toggle-btn-group .btn { font-size: 12px; padding: 4px 10px; border-radius: 6px; }
+
+.route-card {
+    background: white; border: 1px solid #e9ecef; border-radius: 10px; padding: 14px; margin-bottom: 6px;
+    cursor: pointer; transition: all 0.2s; animation: cardIn 0.3s ease-out both;
+}
+@keyframes cardIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+.route-card:hover { border-color: #0d6efd; box-shadow: 0 2px 8px rgba(13,110,253,0.12); transform: translateX(2px); }
+.route-card.recommended { border-color: #198754; background: #f0fff4; border-left: 3px solid #198754; }
+.route-card .label { font-size: 11px; color: #6c757d; }
+.route-card .value { font-size: 15px; font-weight: 600; }
+.traffic-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
+
+.report-section { border-top: 1px solid #e9ecef; padding: 16px; background: white; }
+.report-section h6 { font-size: 13px; font-weight: 600; }
+
+@media (max-width: 992px) {
+    #sidebar { width: 320px; }
+    #map { margin-left: 320px; }
+}
+@media (max-width: 768px) {
+    #sidebar { width: 100%; height: 45%; top: 59px; position: relative; }
+    #map { margin-left: 0; height: 55vh; }
+    .sidebar-inner { padding: 12px; }
+}
 </style>
 {% endblock %}
 {% block content %}
 <div id="sidebar">
-    <h5 class="mb-3">Route Planner</h5>
-    <div class="mb-2">
-        <label class="form-label small">Origin</label>
-        <div class="input-group input-group-sm">
-            <input id="origin-input" class="form-control" placeholder="Type or click pin" autocomplete="off">
-            <button id="origin-pin-btn" class="btn btn-outline-success pin-btn" title="Click on map to set origin">Pin</button>
+    <div class="sidebar-inner">
+        <div class="d-flex align-items-center gap-2 mb-3">
+            <i class="bi bi-geo-alt fs-5 text-primary"></i>
+            <h5 class="m-0" style="font-size:16px;font-weight:700;">Route Planner</h5>
         </div>
-        <div id="origin-suggestions" class="suggestions-box"></div>
-        <div id="origin-pin-status" class="pin-status">Click on the map to drop origin pin</div>
-    </div>
-    <div class="mb-2">
-        <label class="form-label small">Destination</label>
-        <div class="input-group input-group-sm">
-            <input id="dest-input" class="form-control" placeholder="Type or click pin" autocomplete="off">
-            <button id="dest-pin-btn" class="btn btn-outline-danger pin-btn" title="Click on map to set destination">Pin</button>
+
+        <div class="mb-2">
+            <div class="section-label"><i class="bi bi-circle-fill me-1" style="color:#0d6efd;font-size:8px;"></i>Origin</div>
+            <div class="input-group input-group-sm">
+                <input id="origin-input" class="form-control" placeholder="Search place or click pin" autocomplete="off">
+                <button id="origin-pin-btn" class="btn btn-outline-success pin-btn" title="Click on map to set origin"><i class="bi bi-pin-map"></i></button>
+            </div>
+            <div id="origin-suggestions" class="suggestions-box"></div>
+            <div id="origin-pin-status" class="pin-status"><i class="bi bi-hand-index me-1"></i>Click on the map to drop origin pin</div>
         </div>
-        <div id="dest-suggestions" class="suggestions-box"></div>
-        <div id="dest-pin-status" class="pin-status">Click on the map to drop destination pin</div>
-    </div>
-    <div class="d-flex gap-1 mb-3">
-        <button id="swap-btn" class="btn btn-sm btn-outline-secondary" title="Swap origin and destination">Swap</button>
-        <button id="clear-btn" class="btn btn-sm btn-outline-secondary" title="Clear all">Clear</button>
-    </div>
-    <div class="mb-3">
-        <label class="form-label small">Vehicle</label>
-        <select id="vehicle-select" class="form-select form-select-sm">
-            <option value="car">Car</option>
-            <option value="bike">Bike</option>
-            <option value="bus">Bus</option>
-            <option value="truck">Truck</option>
-            <option value="ambulance">Ambulance</option>
-        </select>
-    </div>
-    <button id="find-route-btn" class="btn btn-primary w-100 mb-3">Find Route</button>
+        <div class="mb-2">
+            <div class="section-label"><i class="bi bi-circle-fill me-1" style="color:#dc3545;font-size:8px;"></i>Destination</div>
+            <div class="input-group input-group-sm">
+                <input id="dest-input" class="form-control" placeholder="Search place or click pin" autocomplete="off">
+                <button id="dest-pin-btn" class="btn btn-outline-danger pin-btn" title="Click on map to set destination"><i class="bi bi-pin-map"></i></button>
+            </div>
+            <div id="dest-suggestions" class="suggestions-box"></div>
+            <div id="dest-pin-status" class="pin-status"><i class="bi bi-hand-index me-1"></i>Click on the map to drop destination pin</div>
+        </div>
+        <div class="d-flex gap-1 mb-3">
+            <button id="swap-btn" class="btn btn-sm btn-outline-secondary" title="Swap origin and destination"><i class="bi bi-arrow-left-right"></i> Swap</button>
+            <button id="clear-btn" class="btn btn-sm btn-outline-secondary" title="Clear all"><i class="bi bi-x-lg"></i> Clear</button>
+        </div>
 
-    <div class="d-flex gap-2 mb-3">
-        <button id="toggle-conditions-btn" class="btn btn-sm btn-outline-secondary flex-fill">Show Road Conditions</button>
-        <button id="toggle-traffic-overlay-btn" class="btn btn-sm btn-outline-secondary flex-fill">Show Traffic</button>
-    </div>
+        <div class="mb-3">
+            <div class="section-label">Vehicle</div>
+            <select id="vehicle-select" class="form-select form-select-sm">
+                <option value="car">Car</option>
+                <option value="bike">Bike</option>
+                <option value="bus">Bus</option>
+                <option value="truck">Truck</option>
+                <option value="ambulance">Ambulance</option>
+            </select>
+        </div>
 
-    <div id="results" style="display:none;">
-        <h6 class="border-bottom pb-2 mb-3">Route Options</h6>
-        <div id="routes-container"></div>
-        <div class="mt-3 small">
-            <strong>Traffic Legend:</strong><br>
-            <span class="traffic-dot" style="background:#28a745;"></span> Light
-            <span class="traffic-dot" style="background:#ffc107;"></span> Moderate
-            <span class="traffic-dot" style="background:#fd7e14;"></span> Heavy
-            <span class="traffic-dot" style="background:#dc3545;"></span> Congested
+        <button id="find-route-btn" class="btn btn-primary w-100 mb-3 d-flex align-items-center justify-content-center gap-2">
+            <i class="bi bi-signpost-2"></i> Find Route
+            <span class="spinner" id="route-spinner"></span>
+        </button>
+
+        <div class="section-label mb-1">Overlays</div>
+        <div class="toggle-btn-group mb-2">
+            <button id="toggle-conditions-btn" class="btn btn-sm btn-outline-secondary"><i class="bi bi-exclamation-triangle me-1"></i>Conditions</button>
+            <button id="toggle-traffic-overlay-btn" class="btn btn-sm btn-outline-secondary"><i class="bi bi-bar-chart me-1"></i>Traffic</button>
+            <button id="toggle-plazas-btn" class="btn btn-sm btn-secondary"><i class="bi bi-credit-card me-1"></i>Plazas</button>
+            <button id="toggle-highways-btn" class="btn btn-sm btn-secondary"><i class="bi bi-road me-1"></i>Highways</button>
+        </div>
+        <div class="mb-3">
+            <select id="nh-filter" class="form-select form-select-sm">
+                <option value="">All National Highways</option>
+            </select>
+        </div>
+
+        <div id="results" style="display:none;">
+            <div class="section-label border-bottom pb-2 mb-3"><i class="bi bi-routes me-1"></i>Route Options</div>
+            <div id="routes-container"></div>
+            <div class="mt-3 small p-2 bg-white rounded" style="border:1px solid #e9ecef;">
+                <div class="fw-semibold mb-1" style="font-size:11px;">Traffic Legend</div>
+                <div class="d-flex gap-3 flex-wrap">
+                    <span><span class="traffic-dot" style="background:#28a745;"></span>Light</span>
+                    <span><span class="traffic-dot" style="background:#ffc107;"></span>Moderate</span>
+                    <span><span class="traffic-dot" style="background:#fd7e14;"></span>Heavy</span>
+                    <span><span class="traffic-dot" style="background:#dc3545;"></span>Congested</span>
+                </div>
+            </div>
         </div>
     </div>
 
-    <hr>
-    <h6>Report Road Condition</h6>
-    <div class="mb-2">
-        <input id="rc-road-name" class="form-control form-control-sm mb-1" placeholder="Road name (click map to set)">
-        <select id="rc-type" class="form-select form-select-sm mb-1">
-            <option value="pothole">Pothole</option>
-            <option value="poor">Poor Surface</option>
-            <option value="under_construction">Under Construction</option>
-            <option value="accident">Accident</option>
-            <option value="flooding">Flooding</option>
-            <option value="closed">Road Closed</option>
-            <option value="fair">Fair Surface</option>
-            <option value="good">Good Surface</option>
-        </select>
-        <select id="rc-severity" class="form-select form-select-sm mb-1">
-            <option value="low">Low</option>
-            <option value="medium" selected>Medium</option>
-            <option value="high">High</option>
-            <option value="critical">Critical</option>
-        </select>
-        <textarea id="rc-desc" class="form-control form-control-sm mb-1" placeholder="Description (optional)" rows="2"></textarea>
-        <button id="report-condition-btn" class="btn btn-sm btn-warning w-100">Submit Report</button>
+    <div class="report-section">
+        <h6><i class="bi bi-megaphone me-1"></i>Report Road Condition</h6>
+        <div class="mb-2">
+            <input id="rc-road-name" class="form-control form-control-sm mb-1" placeholder="Road name (click map)">
+            <select id="rc-type" class="form-select form-select-sm mb-1">
+                <option value="pothole">Pothole</option>
+                <option value="poor">Poor Surface</option>
+                <option value="under_construction">Under Construction</option>
+                <option value="accident">Accident</option>
+                <option value="flooding">Flooding</option>
+                <option value="closed">Road Closed</option>
+                <option value="fair">Fair Surface</option>
+                <option value="good">Good Surface</option>
+            </select>
+            <select id="rc-severity" class="form-select form-select-sm mb-1">
+                <option value="low">Low</option>
+                <option value="medium" selected>Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+            </select>
+            <textarea id="rc-desc" class="form-control form-control-sm mb-1" placeholder="Description (optional)" rows="2"></textarea>
+            <button id="report-condition-btn" class="btn btn-sm btn-warning w-100"><i class="bi bi-send me-1"></i>Submit Report</button>
+        </div>
     </div>
 </div>
 <div id="map"></div>
 
 <script src="{% static 'vendor/leaflet/leaflet.js' %}"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script>
 const CSRF_TOKEN = "{{ csrf_token }}";
 
@@ -126,11 +178,19 @@ let trafficOverlay = [];
 let conditionsVisible = false;
 let trafficVisible = false;
 
-let pinMode = null; // 'origin' or 'dest'
+let pinMode = null;
 let pinPreviewMarker = null;
+let isLoading = false;
+
+function setLoading(btn, loading) {
+    isLoading = loading;
+    const spinner = btn.querySelector('.spinner');
+    if (spinner) spinner.style.display = loading ? 'inline-block' : 'none';
+    btn.disabled = loading;
+}
 
 function reverseGeocode(lat, lng) {
-    return fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`)
+    return fetch(`/api/reverse-geocode/?lat=${lat}&lng=${lng}`)
         .then(r => r.json())
         .then(d => d.display_name || `${lat.toFixed(4)}, ${lng.toFixed(4)}`)
         .catch(() => `${lat.toFixed(4)}, ${lng.toFixed(4)}`);
@@ -206,11 +266,9 @@ function updatePinMarkers() {
     }
 }
 
-// Map click handler
 map.on('click', function(e) {
     const {lat, lng} = e.latlng;
 
-    // If in pin mode, set origin or dest
     if (pinMode) {
         const field = pinMode;
         reverseGeocode(lat, lng).then(name => {
@@ -219,7 +277,6 @@ map.on('click', function(e) {
         return;
     }
 
-    // If road name input is focused, fill it
     const rcInput = document.getElementById('rc-road-name');
     if (rcInput === document.activeElement) {
         reverseGeocode(lat, lng).then(name => {
@@ -231,7 +288,6 @@ map.on('click', function(e) {
     }
 });
 
-// Mouse move for pin preview
 map.on('mousemove', function(e) {
     if (!pinMode) {
         if (pinPreviewMarker) {
@@ -251,7 +307,6 @@ map.on('mousemove', function(e) {
     }
 });
 
-// Suggestions
 function getSuggestions(input, target) {
     const val = input.value.trim();
     if (val.length < 3) { document.getElementById(target).innerHTML = ''; return; }
@@ -279,7 +334,6 @@ document.getElementById('dest-input').addEventListener('input', function() {
     getSuggestions(this, 'dest-suggestions');
 });
 
-// Pin buttons
 document.getElementById('origin-pin-btn').addEventListener('click', function() {
     if (pinMode === 'origin') { enterPinMode(null); return; }
     enterPinMode('origin');
@@ -289,7 +343,6 @@ document.getElementById('dest-pin-btn').addEventListener('click', function() {
     enterPinMode('dest');
 });
 
-// Swap
 document.getElementById('swap-btn').addEventListener('click', function() {
     const o = document.getElementById('origin-input');
     const d = document.getElementById('dest-input');
@@ -302,7 +355,6 @@ document.getElementById('swap-btn').addEventListener('click', function() {
     }
 });
 
-// Clear
 document.getElementById('clear-btn').addEventListener('click', function() {
     const o = document.getElementById('origin-input');
     const d = document.getElementById('dest-input');
@@ -317,7 +369,7 @@ document.getElementById('clear-btn').addEventListener('click', function() {
 });
 
 document.getElementById('find-route-btn').addEventListener('click', findRoute);
-document.addEventListener('keydown', e => { if (e.key === 'Enter') findRoute(); });
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && !isLoading) findRoute(); });
 
 function findRoute() {
     const origin = document.getElementById('origin-input');
@@ -329,6 +381,9 @@ function findRoute() {
         else alert('Please set destination (type or click pin on map)');
         return;
     }
+
+    const btn = document.getElementById('find-route-btn');
+    setLoading(btn, true);
 
     routeLayers.forEach(l => map.removeLayer(l));
     routeLayers = [];
@@ -362,35 +417,106 @@ function findRoute() {
         const trafficColors = {light: '#28a745', moderate: '#ffc107', heavy: '#fd7e14', congested: '#dc3545'};
         const trafficLabels = {light: 'Light', moderate: 'Moderate', heavy: 'Heavy', congested: 'Congested'};
 
+        const routeDefaultStyles = [];
+        let openPlazaCard = null;
+
         data.routes.forEach((route, idx) => {
             const color = trafficColors[route.traffic.level] || '#28a745';
             const level = route.traffic.level || 'light';
+            const defaultStyle = {color, weight: idx === 0 ? 6 : 4, opacity: 0.8};
+            routeDefaultStyles[idx] = defaultStyle;
 
             try {
                 const polyline = L.geoJSON(route.geometry, {
-                    style: {color, weight: idx === 0 ? 6 : 4, opacity: 0.8}
+                    style: defaultStyle
                 }).addTo(map);
                 routeLayers.push(polyline);
             } catch(e) {}
 
             const card = document.createElement('div');
             card.className = `route-card${route.recommended ? ' recommended' : ''}`;
+            card.style.animationDelay = `${idx * 0.08}s`;
+
+            let plazaHtml = '';
+            const hasPlazas = route.toll_plazas && route.toll_plazas.length > 0;
+            if (hasPlazas) {
+                plazaHtml = '<div class="plaza-list" style="display:none;"><hr class="my-1"><div class="small"><strong class="text-primary">FASTag Toll Plazas:</strong>';
+                plazaHtml += '<div style="max-height:200px;overflow-y:auto;">';
+                route.toll_plazas.forEach(p => {
+                    const dist = p.distance_km ? ` <span class="text-muted">${p.distance_km}km</span>` : '';
+                    plazaHtml += `<div style="font-size:10px;line-height:1.6;padding:0 4px;display:flex;justify-content:space-between;border-bottom:1px solid #f0f0f0;">
+                        <span>${p.name} <span class="text-muted">(${p.state})</span>${dist}</span>
+                        <span class="fw-bold" style="white-space:nowrap;">₹${p.avg_toll}</span>
+                    </div>`;
+                });
+                plazaHtml += '</div></div></div>';
+            }
+            let tagsHtml = '';
+            if (route.tags && route.tags.length > 0) {
+                const badgeColors = {Fastest: '#198754', Cheapest: '#0d6efd', Best: '#dc3545'};
+                tagsHtml = '<div class="mt-1" style="display:flex;gap:4px;flex-wrap:wrap;">';
+                route.tags.forEach(t => {
+                    tagsHtml += `<span class="badge" style="background:${badgeColors[t] || '#6c757d'};font-size:10px;">${t}</span>`;
+                });
+                tagsHtml += '</div>';
+            }
             card.innerHTML = `
                 <div class="d-flex justify-content-between align-items-center">
-                    <strong>${route.recommended ? 'Route ' + (idx+1) : 'Route ' + (idx+1)}</strong>
+                    <strong>Route ${idx+1}</strong>
                     <span><span class="traffic-dot" style="background:${color}"></span>${trafficLabels[level]}</span>
                 </div>
+                ${tagsHtml}
                 <div class="row mt-2">
                     <div class="col-4"><span class="label">Distance</span><div class="value">${route.distance_km} km</div></div>
                     <div class="col-4"><span class="label">ETA</span><div class="value">${route.adjusted_duration_min} min</div></div>
                     <div class="col-4"><span class="label">Toll</span><div class="value">₹${route.toll || 'N/A'}</div></div>
                 </div>
-                <div class="mt-1"><span class="label">Pricing:</span> ${route.pricing_model || 'N/A'}</div>
+                <div class="mt-1"><span class="label">Pricing:</span> ${route.pricing_model || 'N/A'}${route.pricing_model === 'fastag' ? ' <span class="badge bg-primary" style="font-size:9px;">volume-based</span>' : ''}</div>
                 ${route.road_condition_factor > 0 ? `<div class="mt-1 text-danger small">Road condition delay: +${(route.road_condition_factor * 100).toFixed(0)}%</div>` : ''}
                 ${route.traffic.weather_factor > 0 ? `<div class="mt-1 text-primary small"><strong>Weather:</strong> ${route.traffic.weather_description} — +${(route.traffic.weather_factor * 100).toFixed(0)}% delay</div>` : ''}
+                ${hasPlazas ? '<div class="mt-1 text-center"><span class="badge bg-light text-primary border" style="font-size:9px;cursor:pointer;">▼ Toll Plazas (' + route.toll_plazas.length + ')</span></div>' : ''}
+                ${plazaHtml}
             `;
+
+            card.addEventListener('mouseenter', () => {
+                routeLayers.forEach((layer, i) => {
+                    if (layer && layer.setStyle) {
+                        if (i === idx) {
+                            layer.setStyle({weight: 8, opacity: 1.0});
+                        } else {
+                            layer.setStyle({weight: 2, opacity: 0.2});
+                        }
+                    }
+                });
+                card.style.borderColor = color;
+                card.style.boxShadow = `0 0 0 2px ${color}22`;
+            });
+            card.addEventListener('mouseleave', () => {
+                routeLayers.forEach((layer, i) => {
+                    if (layer && layer.setStyle) {
+                        layer.setStyle(routeDefaultStyles[i]);
+                    }
+                });
+                card.style.borderColor = '';
+                card.style.boxShadow = '';
+            });
             card.addEventListener('click', () => {
-                if (routeLayers[idx]) map.fitBounds(routeLayers[idx].getBounds());
+                if (routeLayers[idx]) {
+                    map.fitBounds(routeLayers[idx].getBounds().pad(0.1));
+                    card.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+                }
+                if (hasPlazas) {
+                    const plazaDiv = card.querySelector('.plaza-list');
+                    if (openPlazaCard && openPlazaCard !== card) {
+                        const prevPlaza = openPlazaCard.querySelector('.plaza-list');
+                        if (prevPlaza) prevPlaza.style.display = 'none';
+                    }
+                    if (plazaDiv) {
+                        const isOpen = plazaDiv.style.display !== 'none';
+                        plazaDiv.style.display = isOpen ? 'none' : 'block';
+                        openPlazaCard = isOpen ? null : card;
+                    }
+                }
             });
             container.appendChild(card);
         });
@@ -405,14 +531,16 @@ function findRoute() {
         updatePinMarkers();
     })
     .catch(err => {
-        alert('Route error: ' + err.message);
+        alert('Route error: ' + (err.message || 'Unknown error'));
+    })
+    .finally(() => {
+        setLoading(btn, false);
     });
 }
 
-// Road Conditions Toggle
 document.getElementById('toggle-conditions-btn').addEventListener('click', function() {
     conditionsVisible = !conditionsVisible;
-    this.textContent = conditionsVisible ? 'Hide Road Conditions' : 'Show Road Conditions';
+    this.innerHTML = conditionsVisible ? '<i class="bi bi-eye-slash me-1"></i>Hide Conditions' : '<i class="bi bi-exclamation-triangle me-1"></i>Conditions';
     this.classList.toggle('btn-secondary');
     this.classList.toggle('btn-outline-secondary');
     if (conditionsVisible) {
@@ -453,13 +581,13 @@ function loadRoadConditions() {
                 marker.bindPopup(`<strong>${rc.road_name}</strong><br>Type: ${rc.condition_type}<br>Severity: ${rc.severity}<br>Status: ${rc.status}<br>Reports: ${rc.report_count}${rc.description ? '<br>' + rc.description : ''}`);
                 conditionMarkers.push(marker);
             });
-        });
+        })
+        .catch(() => alert('Failed to load road conditions'));
 }
 
-// Traffic Overlay Toggle
 document.getElementById('toggle-traffic-overlay-btn').addEventListener('click', function() {
     trafficVisible = !trafficVisible;
-    this.textContent = trafficVisible ? 'Hide Traffic' : 'Show Traffic';
+    this.innerHTML = trafficVisible ? '<i class="bi bi-eye-slash me-1"></i>Hide Traffic' : '<i class="bi bi-bar-chart me-1"></i>Traffic';
     this.classList.toggle('btn-secondary');
     this.classList.toggle('btn-outline-secondary');
     if (trafficVisible) {
@@ -487,10 +615,10 @@ function loadTrafficOverlay() {
                 circle.bindPopup(`<strong>${rc.road_name}</strong><br>Type: ${rc.condition_type}<br>Severity: ${rc.severity}`);
                 trafficOverlay.push(circle);
             });
-        });
+        })
+        .catch(() => alert('Failed to load traffic data'));
 }
 
-// Report Road Condition
 document.getElementById('report-condition-btn').addEventListener('click', function() {
     const roadName = document.getElementById('rc-road-name').value.trim();
     if (!roadName) { alert('Enter a road name'); return; }
@@ -519,5 +647,182 @@ document.getElementById('report-condition-btn').addEventListener('click', functi
     })
     .catch(err => alert('Error: ' + err.message));
 });
+
+// === Highway colour palette by NH number range ===
+function nhColor(nhNum) {
+    const num = parseInt(nhNum.replace(/\D/g, '')) || 0;
+    if (num < 10) return '#e74c3c';
+    if (num < 20) return '#e67e22';
+    if (num < 30) return '#f1c40f';
+    if (num < 40) return '#2ecc71';
+    if (num < 50) return '#1abc9c';
+    if (num < 60) return '#3498db';
+    if (num < 70) return '#9b59b6';
+    if (num < 80) return '#e91e63';
+    if (num < 90) return '#00bcd4';
+    return '#795548';
+}
+
+// === Dataset Overlays ===
+let plazaClusterGroup = L.markerClusterGroup({
+    maxClusterRadius: 60,
+    spiderfyOnMaxZoom: true,
+    showCoverageOnHover: false,
+    zoomToBoundsOnClick: true,
+    disableClusteringAtZoom: 15,
+});
+let highwayLayers = {};
+let plazasVisible = true;
+let highwaysVisible = true;
+let allHighwayData = [];
+
+document.getElementById('toggle-plazas-btn').addEventListener('click', function() {
+    plazasVisible = !plazasVisible;
+    this.innerHTML = plazasVisible ? '<i class="bi bi-eye-slash me-1"></i>Plazas' : '<i class="bi bi-credit-card me-1"></i>Plazas';
+    this.classList.toggle('btn-secondary');
+    this.classList.toggle('btn-outline-secondary');
+    if (plazasVisible) {
+        map.addLayer(plazaClusterGroup);
+    } else {
+        map.removeLayer(plazaClusterGroup);
+    }
+});
+
+document.getElementById('toggle-highways-btn').addEventListener('click', function() {
+    highwaysVisible = !highwaysVisible;
+    this.innerHTML = highwaysVisible ? '<i class="bi bi-eye-slash me-1"></i>Highways' : '<i class="bi bi-road me-1"></i>Highways';
+    this.classList.toggle('btn-secondary');
+    this.classList.toggle('btn-outline-secondary');
+    if (highwaysVisible) {
+        renderHighways(document.getElementById('nh-filter').value);
+    } else {
+        Object.values(highwayLayers).forEach(l => map.removeLayer(l));
+        highwayLayers = {};
+    }
+});
+
+document.getElementById('nh-filter').addEventListener('change', function() {
+    if (highwaysVisible) {
+        renderHighways(this.value);
+    }
+});
+
+function tollIcon(avgToll) {
+    const color = !avgToll ? '#6f42c1' : avgToll < 100 ? '#28a745' : avgToll < 200 ? '#fd7e14' : '#dc3545';
+    return L.divIcon({
+        className: '',
+        html: `<div style="background:${color};color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);">₹</div>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+    });
+}
+
+function loadTollPlazas() {
+    fetch('/api/toll-plazas/')
+        .then(r => r.json())
+        .then(data => {
+            plazaClusterGroup.clearLayers();
+            data.forEach(p => {
+                const avgToll = p.avg_toll ? parseFloat(p.avg_toll).toFixed(0) : 'N/A';
+                const vehicles = p.total_vehicles ? parseInt(p.total_vehicles).toLocaleString() : 'N/A';
+                const m = L.marker([p.latitude, p.longitude], { icon: tollIcon(p.avg_toll) });
+                m.bindPopup(`
+                    <div style="min-width:200px;">
+                        <strong style="font-size:14px;">${p.name}</strong><br>
+                        <span style="color:#6c757d;">${p.state}</span>
+                        <hr style="margin:6px 0;">
+                        <table style="font-size:13px;width:100%;">
+                            <tr><td style="padding-right:12px;">Type</td><td><strong>${p.plaza_type}</strong></td></tr>
+                            <tr><td>Avg Toll</td><td><strong style="color:#0d6efd;">₹${avgToll}</strong></td></tr>
+                            <tr><td>Total Vehicles</td><td><strong>${vehicles}</strong></td></tr>
+                        </table>
+                    </div>
+                `);
+                plazaClusterGroup.addLayer(m);
+            });
+            map.addLayer(plazaClusterGroup);
+        })
+        .catch(() => {});
+}
+
+function renderHighways(filterNh) {
+    Object.values(highwayLayers).forEach(l => map.removeLayer(l));
+    highwayLayers = {};
+
+    const filtered = filterNh ? allHighwayData.filter(h => h.nh_number === filterNh) : allHighwayData;
+
+    filtered.forEach(h => {
+        try {
+            const color = nhColor(h.nh_number);
+            const layer = L.geoJSON(h.geometry, {
+                style: { color, weight: 2.5, opacity: 0.8 }
+            });
+            let popupText = `<strong>${h.nh_number}</strong>`;
+            if (h.name && h.name !== h.nh_number) popupText += `<br>${h.name}`;
+            if (h.length_km) popupText += `<br>Length: ${h.length_km} km`;
+            layer.bindPopup(popupText);
+            layer.addTo(map);
+            const key = h.nh_number + '_' + (h.geometry.type === 'MultiLineString' ? 'mls' : 'ls');
+            highwayLayers[key] = layer;
+        } catch(e) {}
+    });
+
+    // Add NH number label at centre of each highway
+    filtered.forEach(h => {
+        try {
+            const coords = h.geometry.coordinates;
+            let pts;
+            if (coords && coords.length > 0) {
+                if (Array.isArray(coords[0]) && typeof coords[0][0] === 'number') {
+                    pts = coords;
+                } else if (Array.isArray(coords[0]) && Array.isArray(coords[0][0])) {
+                    pts = coords[Math.floor(coords.length / 2)];
+                } else return;
+                const mid = pts[Math.floor(pts.length / 2)];
+                if (mid && mid.length >= 2) {
+                    const label = L.marker([mid[1], mid[0]], {
+                        icon: L.divIcon({
+                            className: '',
+                            html: `<div style="background:${nhColor(h.nh_number)};color:#fff;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:bold;white-space:nowrap;opacity:0.9;">${h.nh_number}</div>`,
+                            iconSize: [0, 0],
+                            iconAnchor: [0, 0],
+                        })
+                    }).addTo(map);
+                    highwayLayers['lbl_' + h.nh_number] = label;
+                }
+            }
+        } catch(e) {}
+    });
+}
+
+function loadNationalHighways() {
+    fetch('/api/national-highways/')
+        .then(r => r.json())
+        .then(data => {
+            allHighwayData = data;
+            // Populate NH filter dropdown
+            const nhSet = new Set();
+            data.forEach(h => { if (h.nh_number) nhSet.add(h.nh_number); });
+            const sorted = [...nhSet].sort((a, b) => {
+                const na = parseInt(a.replace(/\D/g, '')) || 0;
+                const nb = parseInt(b.replace(/\D/g, '')) || 0;
+                return na - nb;
+            });
+            const sel = document.getElementById('nh-filter');
+            sel.innerHTML = '<option value="">All National Highways (' + sorted.length + ')</option>';
+            sorted.forEach(n => {
+                const opt = document.createElement('option');
+                opt.value = n;
+                opt.textContent = n;
+                sel.appendChild(opt);
+            });
+            renderHighways('');
+        })
+        .catch(() => {});
+}
+
+// === Auto-load overlays on page start ===
+loadTollPlazas();
+loadNationalHighways();
 </script>
 {% endblock %}

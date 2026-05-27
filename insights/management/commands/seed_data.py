@@ -4,10 +4,11 @@ import random
 from datetime import datetime, timedelta
 
 from django.contrib.auth.models import User
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from insights.models import CongestionLog, RoadCondition, TollCollection, Trip
+from insights.utils import load_config, invalidate_config_cache
 
 VEHICLES = ["car", "bike", "bus", "truck", "ambulance"]
 
@@ -57,26 +58,33 @@ ROAD_CONDITIONS_DATA = [
 ]
 
 
-def _load_config():
-    path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'data', 'config.json')
-    with open(path) as f:
-        return json.load(f)
+def _build_route_geometry(olng, olat, dlng, dlat):
+    mid_lat = (olat + dlat) / 2
+    mid_lng = (olng + dlng) / 2
+    return {
+        "type": "LineString",
+        "coordinates": [
+            [olng, olat],
+            [mid_lng + random.uniform(-0.02, 0.02), mid_lat + random.uniform(-0.02, 0.02)],
+            [dlng, dlat],
+        ],
+    }
 
 
 def _compute_toll(distance_km, vehicle):
-    config = _load_config()
-    tc = config['toll']
-    if distance_km <= tc['decision_threshold_km']:
-        base_toll = tc['slabs'][-1]['rate']
-        for slab in tc['slabs']:
-            if slab['max_km'] is None or distance_km <= slab['max_km']:
-                base_toll = slab['rate']
+    config = load_config()
+    tc = config["toll"]
+    if distance_km <= tc["decision_threshold_km"]:
+        base_toll = tc["slabs"][-1]["rate"]
+        for slab in tc["slabs"]:
+            if slab["max_km"] is None or distance_km <= slab["max_km"]:
+                base_toll = slab["rate"]
                 break
         model = "slab"
     else:
-        base_toll = distance_km * tc['dynamic_rate_per_km']
+        base_toll = distance_km * tc["dynamic_rate_per_km"]
         model = "dynamic"
-    multiplier = tc['vehicle_multipliers'].get(vehicle, 1.0)
+    multiplier = tc["vehicle_multipliers"].get(vehicle, 1.0)
     return round(base_toll * multiplier, 2), model, base_toll, multiplier
 
 
@@ -87,6 +95,8 @@ class Command(BaseCommand):
         parser.add_argument("--force", action="store_true", help="Delete existing data before seeding")
 
     def handle(self, *args, **options):
+        invalidate_config_cache()
+
         if options["force"]:
             self.stdout.write("Clearing existing data...")
             RoadCondition.objects.all().delete()
@@ -115,7 +125,7 @@ class Command(BaseCommand):
             offset_days = random.randint(0, 29)
             created = timezone.make_aware(datetime.combine(
                 today - timedelta(days=offset_days),
-                datetime.min.time().replace(hour=random.randint(6, 22), minute=random.randint(0, 59))
+                datetime.min.time().replace(hour=random.randint(6, 22), minute=random.randint(0, 59)),
             ))
             vehicle = random.choice(VEHICLES)
             distance_km = round(random.uniform(3, 25), 1)
@@ -131,7 +141,7 @@ class Command(BaseCommand):
                 dest_lng=dlng,
                 distance_km=distance_km,
                 duration_sec=random.randint(300, 1800),
-                route_geometry={"type": "LineString", "coordinates": [[olng, olat]]},
+                route_geometry=_build_route_geometry(olng, olat, dlng, dlat),
                 vehicle_type=vehicle,
                 toll_amount=toll,
                 pricing_model=model,
@@ -154,7 +164,7 @@ class Command(BaseCommand):
             for _ in range(random.randint(3, 8)):
                 created = timezone.make_aware(datetime.combine(
                     today - timedelta(days=random.randint(0, 29)),
-                    datetime.min.time().replace(hour=random.randint(7, 21))
+                    datetime.min.time().replace(hour=random.randint(7, 21)),
                 ))
                 CongestionLog.objects.create(
                     location_name=name,
@@ -165,7 +175,7 @@ class Command(BaseCommand):
                     created_at=created,
                 )
 
-        self.stdout.write(f"Created congestion logs")
+        self.stdout.write("Created congestion logs")
 
         for name, lat, lng, ctype, severity in ROAD_CONDITIONS_DATA:
             status = random.choices(["reported", "verified", "resolved"], weights=[3, 3, 1])[0]
