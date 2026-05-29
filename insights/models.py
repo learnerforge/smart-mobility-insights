@@ -74,6 +74,10 @@ class CongestionLog(models.Model):
     class Meta:
         verbose_name = "Congestion Log"
         verbose_name_plural = "Congestion Logs"
+        indexes = [
+            models.Index(fields=["lat", "lng"]),
+            models.Index(fields=["location_name"]),
+        ]
 
     def __str__(self):
         return f"{self.location_name} ({self.level})"

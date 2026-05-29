@@ -1,6 +1,6 @@
 # Smart Mobility Insights System
 
-A smart city mobility platform integrating 11 government open datasets with an interactive route planner, FASTag volume-based toll estimation, traffic-aware routing, weather-aware ETA, road condition reporting. Built with Django 5.2 + SQLite — no PostGIS required (geometries stored as JSONField, haversine for proximity).
+A pan-India smart mobility platform integrating 11 government open datasets with an interactive route planner, FASTag volume-based toll estimation, traffic-aware routing, weather-aware ETA, road condition reporting. Covers 34+ cities across India with 83 demo routes, 271 congestion logs, and 50 seeded road conditions. Built with Django 5.2 + SQLite — no PostGIS required (geometries stored as JSONField, haversine for proximity).
 
 ---
 
@@ -60,9 +60,9 @@ A smart city mobility platform integrating 11 government open datasets with an i
 - Real-time geocoding (Nominatim) and routing (OSRM)
 - **FASTag volume-based toll estimation** — toll calculated from historical transaction data at plazas along your route, with per-plaza breakdown
 - Configurable fallback toll calculation (slab-based or dynamic per km)
-- Traffic-aware ETA adjustments based on time of day and area congestion
+- Traffic-aware ETA adjustments based on time of day and area congestion (proximity-based matching using lat/lng, not name matching — works for any city)
 - Road condition factors (potholes, accidents, flooding, closures) affect route delay
-- Weather integration (rain, fog, thunderstorms) further adjusts ETA
+- Weather integration (rain, fog, thunderstorms) further adjusts ETA via OpenWeatherMap
 - Route comparison with distance, ETA, toll, traffic level, and weather
 - Toll plaza overlay — 3,453 real toll plazas mapped as interactive markers
 - National Highway overlay — 62,030 highway segments rendered as orange GeoJSON (1,004 merged groups)
@@ -94,7 +94,9 @@ The system pulls data from 7 management commands, each loading real open governm
 | 9 | **NETC Uptime** | NPCI (via OGD) | 12 | `seed_netc` |
 | 10 | **NETC Disputes** | NPCI (via OGD) | 10 | `seed_netc` |
 | 11 | **Economic Survey Tables** | MoSPI (historical) | 11 (1961–2024) | `seed_economic_survey` |
-| — | **Congestion / Conditions** | User-generated | Dynamic | `seed_data` |
+| — | **Demo Trips (India-wide)** | Generated | 83 (34 cities) | `seed_data` |
+| — | **Congestion Logs** | User-generated / Seed | 271 (20+ cities) | `seed_data` |
+| — | **Road Conditions** | User-generated / Seed | 50 (24+ cities) | `seed_data` |
 
 ---
 
@@ -253,8 +255,11 @@ python manage.py migrate
 ### 5. Seed All Data
 
 ```bash
-# Base demo data (users, trips, conditions)
+# Base demo data (users, trips, conditions across 34 Indian cities)
 python manage.py seed_data
+
+# Re-seed with --force to clear old data and load pan-India data:
+python manage.py seed_data --force
 
 # Government open datasets
 python manage.py seed_fastag                      # 34,530 FASTag transactions + 3,453 toll plazas
@@ -271,7 +276,7 @@ python manage.py seed_economic_survey             # 11 historical records (1961-
 python manage.py runserver
 ```
 
-Open `http://127.0.0.1:8000/` in a browser. Log in with:
+Open `http://127.0.0.1:8000/` in a browser. The map loads centered on India (zoom 5) — navigate to any city. Log in with:
 - **Demo user**: username `user`, password `user1234`
 - **Admin user**: username `admin`, password `admin123`
 
@@ -369,7 +374,7 @@ Toll pricing, vehicle multipliers, peak hours, congestion thresholds, and weathe
 python manage.py test
 ```
 
-Tests cover haversine distance, toll calculation (2 methods), trip model, toll collection, National Highway model, API views, routing, and road condition reporting.
+Tests cover haversine distance, toll calculation (2 methods), trip model, toll collection, National Highway model, API views, routing, road condition reporting, and proximity-based traffic area factor.
 
 ---
 

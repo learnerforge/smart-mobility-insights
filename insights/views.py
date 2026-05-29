@@ -142,7 +142,7 @@ def api_route(request):
         vehicle = body.get("vehicle", "car")
 
         osrm_data = get_routes(origin_lat, origin_lng, dest_lat, dest_lng)
-        congestion_logs = list(CongestionLog.objects.all().values("location_name"))
+        congestion_logs = list(CongestionLog.objects.all().values("location_name", "lat", "lng"))
         traffic = get_traffic_info(
             origin_name, dest_name, congestion_logs,
             origin_lat=origin_lat, origin_lng=origin_lng,
