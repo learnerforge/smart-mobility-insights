@@ -7,18 +7,18 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
-from django.db.models import Avg, Count, Max, Sum
+from django.db.models import Avg, Count, Sum
 from django.db.utils import IntegrityError
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
-from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods, require_POST
 
 from .forms import LoginForm, RegisterForm
 from .models import CongestionLog, RoadCondition, TollCollection, Trip
 from .road_conditions import _haversine, get_road_condition_factor, report_condition, resolve_condition
 from .routing import geocode, get_routes
-from .toll_calc import compute_fastag_toll, compute_toll, get_vehicle_multiplier
+from .toll_calc import compute_fastag_toll, get_vehicle_multiplier
 from .traffic import get_traffic_info
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ def _check_login_rate(ip):
 @require_http_methods(["GET", "POST"])
 def login_view(request):
     if request.method == "POST":
-        ip = request.META.get("REMOTE_ADDR", "")
+        ip = request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip() or request.META.get("REMOTE_ADDR", "")
         if not _check_login_rate(ip):
             logger.warning("Login rate limit hit for IP: %s", ip)
             return render(request, "registration/login.html", {

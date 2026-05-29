@@ -7,8 +7,12 @@ logger = logging.getLogger(__name__)
 
 
 def _to_minutes(t):
-    parts = t.split(":")
-    return int(parts[0]) * 60 + int(parts[1])
+    try:
+        parts = t.split(":")
+        return int(parts[0]) * 60 + int(parts[1])
+    except (ValueError, IndexError, AttributeError):
+        logger.warning("Invalid time value in config: %s", t)
+        return 0
 
 
 def get_time_factor(config):
@@ -34,13 +38,13 @@ def get_time_factor(config):
 def get_congestion_level(factor, config):
     th = config["traffic"]["congestion_thresholds"]
     if factor < th["light"]:
-        return "light", "\U0001f7e2"
+        return "light", "green_circle"
     elif factor < th["moderate"]:
-        return "moderate", "\U0001f7e1"
+        return "moderate", "yellow_circle"
     elif factor < th["heavy"]:
-        return "heavy", "\U0001f7e0"
+        return "heavy", "orange_circle"
     else:
-        return "congested", "\U0001f534"
+        return "congested", "red_circle"
 
 
 def get_area_factor(origin_name, dest_name, congestion_logs):
