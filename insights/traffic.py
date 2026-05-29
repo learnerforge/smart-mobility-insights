@@ -1,4 +1,5 @@
 import logging
+import math
 from datetime import datetime
 
 from .utils import load_config
@@ -47,21 +48,32 @@ def get_congestion_level(factor, config):
         return "congested", "red_circle"
 
 
-def get_area_factor(origin_name, dest_name, congestion_logs):
-    origin_lower = origin_name.lower() if origin_name else ""
-    dest_lower = dest_name.lower() if dest_name else ""
+def _haversine(lat1, lng1, lat2, lng2):
+    R = 6371
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lng2 - lng1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+def get_area_factor(origin_lat, origin_lng, dest_lat, dest_lng, congestion_logs):
+    mid_lat = (origin_lat + dest_lat) / 2
+    mid_lng = (origin_lng + dest_lng) / 2
+    radius = max(_haversine(origin_lat, origin_lng, dest_lat, dest_lng) / 2, 3)
     count = 0
     for log in congestion_logs:
-        log_name = log.get("location_name", "").lower()
-        if origin_lower and origin_lower in log_name:
-            count += 1
-        if dest_lower and dest_lower in log_name:
-            count += 1
-    if count > 20:
+        log_lat = log.get("lat")
+        log_lng = log.get("lng")
+        if log_lat is not None and log_lng is not None:
+            dist = _haversine(mid_lat, mid_lng, float(log_lat), float(log_lng))
+            if dist <= radius:
+                count += 1
+    if count > 15:
         return 2.0
-    elif count > 10:
+    elif count > 8:
         return 1.5
-    elif count > 5:
+    elif count > 3:
         return 1.2
     return 1.0
 
@@ -72,7 +84,10 @@ def get_traffic_info(
 ):
     config = load_config()
     time_factor = get_time_factor(config)
-    area_factor = get_area_factor(origin_name, dest_name, congestion_logs or [])
+    area_factor = get_area_factor(
+        origin_lat or 0, origin_lng or 0, dest_lat or 0, dest_lng or 0,
+        congestion_logs or [],
+    )
     combined = max(time_factor, area_factor)
     weather_factor = 0.0
     weather_desc = None
